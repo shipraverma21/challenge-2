@@ -1,0 +1,31 @@
+image: docker:20.10
+
+services:
+  - docker:dind
+
+stages:
+  - build
+  - test
+  - release
+  - preprod
+  - integration
+  - prod
+  - deploy
+
+os-hardening:
+  stage: deploy
+  only:
+    - "main"
+  image: willhallonline/ansible:2.16-ubuntu-22.04
+  before_script:
+    - mkdir -p ~/.ssh
+    - echo "$DEPLOYMENT_SERVER_SSH_PRIVKEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - eval "$(ssh-agent -s)"
+    - ssh-add ~/.ssh/id_rsa
+    - ssh-keyscan -H $DEPLOYMENT_SERVER >> ~/.ssh/known_hosts
+  script:
+    - echo -e "[prod]\n$DEPLOYMENT_SERVER" >> inventory.ini
+    - ansible-galaxy install dev-sec.os-hardening
+    - ansible-playbook -i inventory.ini ansible-hardening.yml
+  allow_failure: true
